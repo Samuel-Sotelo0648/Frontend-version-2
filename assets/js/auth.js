@@ -20,6 +20,21 @@ function buscarUsuario(correo, cuentas) {
     return null;
 }
 
+// Devuelve el rol de una cuenta sin cambiar el valor que ya tiene guardado.
+function identificarRol(cuenta) {
+    const rol = (cuenta.rol || "User").toLowerCase();
+    if (rol === "admin" || rol === "administrador") {
+        return "Admin";
+    }
+    if (rol === "proveedor") {
+        return "Proveedor";
+    }
+    if (rol === "user" || rol === "lector" || rol === "cliente") {
+        return "User";
+    }
+    return null;
+}
+
 // Recibe la fecha de desbloqueo y devuelve el tiempo que falta en horas y minutos.
 function tiempoRestante(bloqueadoHasta) {
     const minutosTotales = Math.ceil((bloqueadoHasta - new Date().getTime()) / 60000);
@@ -55,6 +70,8 @@ window.obtenerUsuarioActual = function () {
                 apellidos: cuentas[i].apellidos || "",
                 nombre: cuentas[i].nombre,
                 correo: cuentas[i].correo,
+                rol: identificarRol(cuentas[i]),
+                direccion: cuentas[i].direccion || "",
                 foto: cuentas[i].foto || ""
             };
         }
@@ -67,9 +84,11 @@ window.cerrarSesion = function () {
     localStorage.removeItem("paginas_sesion_actual");
 };
 
-// Recibe la ruta al login. Si no hay usuario, redirige y devuelve false.
-window.protegerPagina = function (rutaLogin) {
-    if (window.obtenerUsuarioActual() === null) {
+// Recibe la ruta al login y el rol permitido; protege las páginas de User.
+window.protegerPagina = function (rutaLogin, rolPermitido) {
+    const usuario = window.obtenerUsuarioActual();
+    const rol = rolPermitido || "User";
+    if (usuario === null || usuario.rol !== rol) {
         window.location.replace(rutaLogin);
         return false;
     }
@@ -109,6 +128,7 @@ window.ejecutarRegistro = function (evento) {
         nombre: nombres + " " + apellidos,
         correo: correo,
         clave: clave,
+        rol: "User",
         foto: ""
     });
     localStorage.setItem("paginas_cuentas_v1", JSON.stringify(cuentas));
@@ -151,12 +171,29 @@ window.ejecutarLogin = function (evento) {
         localStorage.setItem("paginas_cuentas_v1", JSON.stringify(cuentas));
     }
 
-    // La contraseña correcta inicia sesión y borra los intentos anteriores.
+    // La contraseña correcta borra los intentos anteriores.
     if (clave === usuarioEncontrado.clave) {
         usuarioEncontrado.intentosFallidos = 0;
         usuarioEncontrado.isBlocked = false;
         usuarioEncontrado.bloqueadoHasta = 0;
         localStorage.setItem("paginas_cuentas_v1", JSON.stringify(cuentas));
+
+        const rol = identificarRol(usuarioEncontrado);
+        // Evita conservar la sesión de otra cuenta al cambiar de usuario.
+        window.cerrarSesion();
+        if (rol === "Admin") {
+            alert("Cuenta Admin identificada. La conexión con su página está pendiente.");
+            return false;
+        }
+        if (rol === "Proveedor") {
+            alert("Cuenta Proveedor identificada. Su página se agregará más adelante.");
+            return false;
+        }
+        if (rol !== "User") {
+            alert("El rol de esta cuenta no se reconoce.");
+            return false;
+        }
+
         // El carrito lee esta sesión para saber quién inició sesión.
         localStorage.setItem("paginas_sesion_actual", JSON.stringify({
             id: usuarioEncontrado.id,
@@ -164,7 +201,12 @@ window.ejecutarLogin = function (evento) {
             correo: usuarioEncontrado.correo
         }));
         alert("Inicio de sesión exitoso.");
-        window.location.href = "./cart.html";
+        // Si venía del carrito, vuelve allí; en otro caso abre su perfil.
+        if (window.location.search === "?volver=carrito") {
+            window.location.href = "./cart.html";
+        } else {
+            window.location.href = "./profile.html";
+        }
         return false;
     }
 
