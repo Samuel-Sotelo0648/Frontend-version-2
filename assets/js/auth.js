@@ -20,6 +20,52 @@ function buscarUsuario(correo, cuentas) {
     return null;
 }
 
+// Agrega dos cuentas temporales para probar la entrada de Admin y Proveedor.
+// Se guardan una sola vez para conservar sus intentos fallidos y bloqueos.
+function crearCuentasPrueba() {
+    const cuentas = leerCuentas();
+    const pruebas = [
+        {
+            id: "ADMIN-DEMO",
+            nombres: "Admin",
+            apellidos: "Prueba",
+            nombre: "Admin Prueba",
+            correo: "admin.prueba@paginasdeltiempo.test",
+            clave: "Admin1234",
+            rol: "Admin",
+            intentosFallidos: 0,
+            isBlocked: false,
+            bloqueadoHasta: 0
+        },
+        {
+            id: "PROV-DEMO",
+            nombres: "Proveedor",
+            apellidos: "Prueba",
+            nombre: "Proveedor Prueba",
+            correo: "proveedor.prueba@paginasdeltiempo.test",
+            clave: "Proveedor1234",
+            rol: "Proveedor",
+            intentosFallidos: 0,
+            isBlocked: false,
+            bloqueadoHasta: 0
+        }
+    ];
+    let seAgrego = false;
+
+    for (let i = 0; i < pruebas.length; i = i + 1) {
+        if (buscarUsuario(pruebas[i].correo, cuentas) === null) {
+            cuentas.push(pruebas[i]);
+            seAgrego = true;
+        }
+    }
+
+    if (seAgrego) {
+        localStorage.setItem("paginas_cuentas_v1", JSON.stringify(cuentas));
+    }
+}
+
+crearCuentasPrueba();
+
 // Devuelve el rol de una cuenta sin cambiar el valor que ya tiene guardado.
 function identificarRol(cuenta) {
     const rol = (cuenta.rol || "User").toLowerCase();
@@ -84,7 +130,7 @@ window.cerrarSesion = function () {
     localStorage.removeItem("paginas_sesion_actual");
 };
 
-// Recibe la ruta al login y el rol permitido; protege las páginas de User.
+// Recibe la ruta al login y el rol permitido; protege cada página según su rol.
 window.protegerPagina = function (rutaLogin, rolPermitido) {
     const usuario = window.obtenerUsuarioActual();
     const rol = rolPermitido || "User";
@@ -156,7 +202,16 @@ window.ejecutarLogin = function (evento) {
         return false;
     }
 
-    // isBlocked indica si la cuenta está bloqueada. La fecha indica hasta cuándo.
+    const rol = identificarRol(usuarioEncontrado);
+    // Admin no usa bloqueo. También se limpia un bloqueo anterior de prueba.
+    if (rol === "Admin") {
+        usuarioEncontrado.intentosFallidos = 0;
+        usuarioEncontrado.isBlocked = false;
+        usuarioEncontrado.bloqueadoHasta = 0;
+        localStorage.setItem("paginas_cuentas_v1", JSON.stringify(cuentas));
+    }
+
+    // User y Proveedor sí conservan el bloqueo de 24 horas.
     const ahora = new Date().getTime();
     if (usuarioEncontrado.isBlocked === true) {
         if (usuarioEncontrado.bloqueadoHasta > ahora) {
@@ -178,39 +233,40 @@ window.ejecutarLogin = function (evento) {
         usuarioEncontrado.bloqueadoHasta = 0;
         localStorage.setItem("paginas_cuentas_v1", JSON.stringify(cuentas));
 
-        const rol = identificarRol(usuarioEncontrado);
         // Evita conservar la sesión de otra cuenta al cambiar de usuario.
         window.cerrarSesion();
-        if (rol === "Admin") {
-            alert("Cuenta Admin identificada. La conexión con su página está pendiente.");
-            return false;
-        }
-        if (rol === "Proveedor") {
-            alert("Cuenta Proveedor identificada. Su página se agregará más adelante.");
-            return false;
-        }
-        if (rol !== "User") {
+        if (rol === null) {
             alert("El rol de esta cuenta no se reconoce.");
             return false;
         }
 
-        // El carrito lee esta sesión para saber quién inició sesión.
+        // La cuenta y su rol se recuperan desde esta sesión al abrir otra página.
         localStorage.setItem("paginas_sesion_actual", JSON.stringify({
             id: usuarioEncontrado.id,
             nombre: usuarioEncontrado.nombre,
             correo: usuarioEncontrado.correo
         }));
         alert("Inicio de sesión exitoso.");
-        // Si venía del carrito, vuelve allí; en otro caso abre su perfil.
-        if (window.location.search === "?volver=carrito") {
+        // Cada rol abre su página. User conserva el regreso al carrito.
+        if (rol === "Admin") {
+            window.location.href = "./admin.html";
+        } else if (rol === "Proveedor") {
+            window.location.href = "./proveedor.html";
+        } else if (window.location.search === "?volver=carrito") {
             window.location.href = "./cart.html";
         } else {
-            window.location.href = "./profile.html";
+            window.location.href = "../index.html";
         }
         return false;
     }
 
-    // Cada contraseña incorrecta suma un intento y se guarda en localStorage.
+    // Admin puede volver a intentar sin que su cuenta se bloquee.
+    if (rol === "Admin") {
+        alert("Contraseña incorrecta.");
+        return false;
+    }
+
+    // En User y Proveedor, cada contraseña incorrecta suma un intento.
     let intentos = usuarioEncontrado.intentosFallidos || 0;
     intentos++;
     usuarioEncontrado.intentosFallidos = intentos;

@@ -6,6 +6,8 @@ export class OrdenCompra {
         this.fecha = new Date().toISOString();
         this.estado = "Confirmada";
         this.detalles = [];
+        this.subtotal = 0;
+        this.iva = 0;
         this.total = 0;
 
         // Cada detalle guarda el precio al comprar; el stock puede cambiar después.
@@ -20,7 +22,11 @@ export class OrdenCompra {
                 cantidad: item.cantidad,
                 subtotal: subtotal
             });
-            this.total = this.total + subtotal;
+            this.subtotal = this.subtotal + subtotal;
         }
+
+        // La orden usa el mismo IVA que muestra el carrito.
+        this.iva = carrito.calcularIva();
+        this.total = this.subtotal + this.iva;
     }
 }

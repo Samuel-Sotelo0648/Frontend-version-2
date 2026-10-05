@@ -13,7 +13,7 @@
     <!-- CSS del proyecto -->
     <link rel="stylesheet" href="./../assets/css/style.css">
     <link rel="stylesheet" href="./../assets/css/pages/cart.css">
-    <link rel="stylesheet" href="./../assets/css/components/checkout.css">
+    <link rel="stylesheet" href="./../assets/css/components/checkout-provided.css">
 
     <!-- Favicon -->
     <link rel="shortcut icon" href="./../assets/img/favicon/libro.png" type="image/x-icon">
@@ -103,6 +103,10 @@
                             <span>Envío</span>
                             <span id="summaryShipping">$0</span>
                         </li>
+                        <li>
+                            <span>IVA (19 %)</span>
+                            <span id="summaryTax">$0</span>
+                        </li>
                     </ul>
 
                     <div class="summary-total">
@@ -110,7 +114,7 @@
                         <strong id="summaryTotal">$0</strong>
                     </div>
 
-                    <button type="button" class="btn-checkout" id="checkoutButton">Finalizar compra</button>
+                    <button type="button" class="btn-checkout" id="boton-ventas">Finalizar compra</button>
 
                     <p class="summary-note">
                         Al continuar podrás elegir el método de pago y la dirección de envío.
@@ -153,70 +157,6 @@
             <a href="./book-categories.html" class="btn-empty-cart">Explorar libros</a>
         </section>
     </main>
-
-    <!-- Formulario de demostración para dirección y método de pago. -->
-    <div class="overlay" id="checkoutOverlay" aria-hidden="true">
-        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
-            <button type="button" class="boton-reculiado" id="closeCheckoutButton" aria-label="Cerrar formulario">&times;</button>
-            <h2 id="checkoutTitle">Finalizar compra</h2>
-            <p>Completa los datos de envío. Esta demostración no solicita ni almacena información bancaria.</p>
-
-            <form id="checkoutForm">
-                <div class="campo">
-                    <label for="customerName">Nombre completo</label>
-                    <input type="text" id="customerName" name="customerName" autocomplete="name" required minlength="3">
-                </div>
-
-                <div class="campo">
-                    <label for="customerEmail">Correo electrónico</label>
-                    <input type="email" id="customerEmail" name="customerEmail" autocomplete="email" required>
-                </div>
-
-                <div class="campo">
-                    <label for="shippingAddress">Dirección de envío</label>
-                    <input type="text" id="shippingAddress" name="shippingAddress" autocomplete="street-address" required minlength="5">
-                </div>
-
-                <div class="fila">
-                    <div class="campo">
-                        <label for="shippingCity">Ciudad</label>
-                        <input type="text" id="shippingCity" name="shippingCity" autocomplete="address-level2" required>
-                    </div>
-                    <div class="campo">
-                        <label for="shippingDepartment">Departamento</label>
-                        <input type="text" id="shippingDepartment" name="shippingDepartment" autocomplete="address-level1" required>
-                    </div>
-                </div>
-
-                <div class="campo">
-                    <label for="paymentMethod">Método de pago</label>
-                    <select id="paymentMethod" name="paymentMethod" required>
-                        <option value="">Selecciona una opción</option>
-                        <option value="Contraentrega">Pago contraentrega</option>
-                        <option value="Transferencia simulada">Transferencia simulada</option>
-                    </select>
-                </div>
-
-                <p class="mensaje-error" id="checkoutError" role="alert"></p>
-
-                <div class="acciones">
-                    <button type="button" class="btn-card-detail" id="cancelCheckoutButton">Cancelar</button>
-                    <button type="submit" class="btn-checkout">Confirmar compra</button>
-                </div>
-            </form>
-        </section>
-    </div>
-
-    <!-- Confirmación que JavaScript completa después de crear la orden. -->
-    <div class="overlay" id="orderOverlay" aria-hidden="true">
-        <section class="modal factura" role="dialog" aria-modal="true" aria-labelledby="orderDialogTitle">
-            <h2 id="orderDialogTitle">Resumen de la orden</h2>
-            <div id="orderReceipt"></div>
-            <div class="acciones">
-                <button type="button" class="btn-checkout" id="closeOrderButton">Cerrar</button>
-            </div>
-        </section>
-    </div>
 
     <footer class="footer">
         <div class="footer-brand">
@@ -275,6 +215,7 @@
 
     <!-- Controlador modular del carrito -->
     <script type="module" src="./../assets/js/pages/cart-page.js"></script>
+    <script src="./../assets/js/pages/checkout.js"></script>
 </body>
 
 </html>

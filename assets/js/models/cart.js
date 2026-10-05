@@ -78,9 +78,14 @@ export class Carrito {
         return total;
     }
 
-    /* El total es únicamente la suma de los precios de los libros. */
+    /* Por ahora todos los productos pagan IVA. La excepción futura va aquí. */
+    calcularIva() {
+        return Math.round(this.calcularSubtotal() * 0.19);
+    }
+
+    /* Suma el valor de los productos y el IVA. */
     calcularTotal() {
-        return this.calcularSubtotal();
+        return this.calcularSubtotal() + this.calcularIva();
     }
 
     /* Quita todas las líneas después de confirmar una orden. */

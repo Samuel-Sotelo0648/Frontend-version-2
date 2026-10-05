@@ -74,6 +74,8 @@ export class ServicioAlmacenamiento {
             usuario: orden.cliente.nombre,
             email: orden.cliente.correo,
             items: items,
+            subtotal: orden.subtotal,
+            iva: orden.iva,
             total: orden.total,
             fecha: orden.fecha,
             estado: orden.estado

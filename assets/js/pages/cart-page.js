@@ -1,7 +1,7 @@
 import { actualizarIndicadorCarrito } from "../components/cart-indicator.js";
 import { crearTarjetaLibro } from "../components/book-card.js";
 import { ServicioTienda } from "../services/shop-service.js";
-import { formatearFecha, formatearMoneda } from "../services/format-service.js";
+import { formatearMoneda } from "../services/format-service.js";
 
 /* Conecta los botones y formularios del carrito con sus datos. */
 export class PaginaCarrito {
@@ -13,11 +13,6 @@ export class PaginaCarrito {
         this.textoCantidad = null;
         this.recomendaciones = null;
         this.botonFinalizar = null;
-        this.modalCompra = null;
-        this.formularioCompra = null;
-        this.errorCompra = null;
-        this.modalOrden = null;
-        this.resumenOrden = null;
         this.temporizadorMensaje = null;
     }
 
@@ -28,27 +23,17 @@ export class PaginaCarrito {
         this.estadoVacio = document.getElementById("emptyCartState");
         this.textoCantidad = document.getElementById("cartPageCount");
         this.recomendaciones = document.getElementById("recommendedBooksGrid");
-        this.botonFinalizar = document.getElementById("checkoutButton");
-        this.modalCompra = document.getElementById("checkoutOverlay");
-        this.formularioCompra = document.getElementById("checkoutForm");
-        this.errorCompra = document.getElementById("checkoutError");
-        this.modalOrden = document.getElementById("orderOverlay");
-        this.resumenOrden = document.getElementById("orderReceipt");
+        this.botonFinalizar = document.getElementById("boton-ventas");
 
         return this.lista !== null
             && this.distribucion !== null
             && this.estadoVacio !== null
             && this.textoCantidad !== null
             && this.recomendaciones !== null
-            && this.botonFinalizar !== null
-            && this.modalCompra !== null
-            && this.formularioCompra !== null
-            && this.errorCompra !== null
-            && this.modalOrden !== null
-            && this.resumenOrden !== null;
+            && this.botonFinalizar !== null;
     }
 
-    /* Conecta botones, formulario y modales antes del primer renderizado. */
+    /* Conecta el carrito con las ventanas nuevas de compra y factura. */
     iniciar() {
         const pagina = this;
 
@@ -56,44 +41,27 @@ export class PaginaCarrito {
             return false;
         }
 
-        this.botonFinalizar.addEventListener("click", function () {
-            pagina.abrirCompra();
-        });
+        // El código de las ventanas llama estas dos funciones al abrir y confirmar.
+        window.carritoListoParaComprar = function () {
+            return pagina.validarCompra();
+        };
+        window.crearPedidoDesdeCarrito = function () {
+            return pagina.crearPedido();
+        };
 
-        document.getElementById("cancelCheckoutButton").addEventListener("click", function () {
-            pagina.cerrarCompra();
-        });
-
-        document.getElementById("closeCheckoutButton").addEventListener("click", function () {
-            pagina.cerrarCompra();
-        });
-
-        document.getElementById("closeOrderButton").addEventListener("click", function () {
-            pagina.cerrarOrden();
-        });
-
-        this.modalCompra.addEventListener("click", function (evento) {
-            if (evento.target === pagina.modalCompra) {
-                pagina.cerrarCompra();
+        // Se comprueba de nuevo justo antes de enviar el formulario de pago.
+        document.addEventListener("submit", function (evento) {
+            if (evento.target.id === "form-pago") {
+                const estado = pagina.validarCompra();
+                if (!estado.ok) {
+                    evento.preventDefault();
+                    evento.stopPropagation();
+                    const mensaje = document.getElementById("mensaje-error");
+                    mensaje.textContent = estado.mensaje;
+                    mensaje.classList.add("visible");
+                }
             }
-        });
-
-        this.modalOrden.addEventListener("click", function (evento) {
-            if (evento.target === pagina.modalOrden) {
-                pagina.cerrarOrden();
-            }
-        });
-
-        this.formularioCompra.addEventListener("submit", function (evento) {
-            pagina.confirmarCompra(evento);
-        });
-
-        document.addEventListener("keydown", function (evento) {
-            if (evento.key === "Escape") {
-                pagina.cerrarCompra();
-                pagina.cerrarOrden();
-            }
-        });
+        }, true);
 
         this.renderizar();
         return true;
@@ -227,13 +195,14 @@ export class PaginaCarrito {
         this.renderizar();
     }
 
-    /* Actualiza el subtotal y el total con el valor de los libros. */
+    /* Actualiza subtotal, IVA y total de la compra. */
     renderizarResumen() {
         const cantidad = this.tienda.carrito.obtenerCantidadTotal();
 
         document.getElementById("summarySubtotalLabel").textContent = "Subtotal (" + cantidad + " ejemplares)";
         document.getElementById("summarySubtotal").textContent = formatearMoneda(this.tienda.carrito.calcularSubtotal());
         document.getElementById("summaryShipping").textContent = "$0";
+        document.getElementById("summaryTax").textContent = formatearMoneda(this.tienda.carrito.calcularIva());
         document.getElementById("summaryTotal").textContent = formatearMoneda(this.tienda.carrito.calcularTotal());
     }
 
@@ -270,124 +239,66 @@ export class PaginaCarrito {
         }
     }
 
-    /* Abre el formulario de envío solamente cuando existen productos. */
-    abrirCompra() {
-        if (this.tienda.carrito.items.length === 0) {
-            return;
+    /* Comprueba sesión, carrito y stock antes de abrir o confirmar la compra. */
+    validarCompra() {
+        const usuario = window.obtenerUsuarioActual();
+        let mensaje = "";
+
+        if (usuario === null || usuario.rol !== "User") {
+            mensaje = "Debes iniciar sesión antes de comprar.";
+        } else if (this.tienda.carrito.items.length === 0) {
+            mensaje = "El carrito está vacío.";
+        } else {
+            // Leemos el stock más reciente antes de aceptar el pedido.
+            this.tienda.actualizarStockDesdeStorage();
+            for (let i = 0; i < this.tienda.carrito.items.length; i = i + 1) {
+                const item = this.tienda.carrito.items[i];
+                if (!item.producto.tieneStock(item.cantidad)) {
+                    mensaje = "No hay suficientes ejemplares de “" + item.producto.titulo + "”.";
+                    break;
+                }
+            }
         }
-        const sesion = this.tienda.almacenamiento.obtenerSesion();
-        if (sesion === null || !sesion.id) {
-            this.mostrarMensaje("Debes iniciar sesión antes de comprar.");
-            return;
+
+        if (mensaje !== "") {
+            this.mostrarMensaje(mensaje);
+            return { ok: false, mensaje: mensaje };
         }
-        this.errorCompra.classList.remove("visible");
-        this.modalCompra.classList.add("activo");
-        this.modalCompra.setAttribute("aria-hidden", "false");
-        document.getElementById("customerName").focus();
+        return { ok: true, mensaje: "" };
     }
 
-    /* Cierra el formulario sin cambiar el carrito. */
-    cerrarCompra() {
-        if (this.modalCompra !== null) {
-            this.modalCompra.classList.remove("activo");
-            this.modalCompra.setAttribute("aria-hidden", "true");
-        }
-    }
-
-    /* Valida los datos, crea Cliente y solicita al servicio generar la orden. */
-    confirmarCompra(evento) {
-        evento.preventDefault();
-
-        const sesion = this.tienda.almacenamiento.obtenerSesion();
-        if (sesion === null || !sesion.id) {
-            this.errorCompra.textContent = "Debes iniciar sesión antes de comprar.";
-            this.errorCompra.classList.add("visible");
-            return;
-        }
-
-        if (!this.formularioCompra.checkValidity()) {
-            this.errorCompra.textContent = "Completa correctamente todos los campos obligatorios.";
-            this.errorCompra.classList.add("visible");
-            this.formularioCompra.reportValidity();
-            return;
-        }
-
+    /* La ventana nueva pide los libros comprados para construir su factura. */
+    crearPedido() {
+        const usuario = window.obtenerUsuarioActual();
         const cliente = {
-            id: sesion.id,
-            nombre: document.getElementById("customerName").value.trim(),
-            correo: document.getElementById("customerEmail").value.trim(),
-            direccion: document.getElementById("shippingAddress").value.trim(),
-            ciudad: document.getElementById("shippingCity").value.trim(),
-            departamento: document.getElementById("shippingDepartment").value.trim()
+            id: usuario.id,
+            nombre: document.getElementById("titular").value.trim(),
+            correo: usuario.correo,
+            direccion: document.getElementById("direccion").value.trim(),
+            ciudad: document.getElementById("ciudad").value.trim(),
+            departamento: document.getElementById("departamento").value.trim()
         };
 
+        // El servicio conserva la compra, descuenta el stock y vacía el carrito.
         const orden = this.tienda.confirmarCompra(cliente);
         if (orden === null) {
-            this.errorCompra.textContent = "No fue posible confirmar la compra. Verifica el carrito y el stock.";
-            this.errorCompra.classList.add("visible");
-            return;
+            // Sin pedido real no permitimos que se muestre una factura de éxito.
+            const mensaje = document.getElementById("mensaje-error");
+            mensaje.textContent = "No fue posible confirmar la compra. Verifica el stock.";
+            mensaje.classList.add("visible");
+            throw new Error("No fue posible confirmar la compra. Verifica el stock.");
         }
 
-        this.cerrarCompra();
-        this.formularioCompra.reset();
-        this.mostrarOrden(orden);
-        this.renderizar();
-    }
-
-    /* Construye la confirmación y el detalle de la orden con elementos seguros. */
-    mostrarOrden(orden) {
-        const titulo = this.crearElemento("h3", "order-success-title", "¡Compra confirmada!");
-        const numero = this.crearElemento("p", "order-number", "Orden " + orden.numero);
-        const fecha = this.crearElemento("p", "order-date", "Fecha: " + formatearFecha(orden.fecha));
-        const destino = this.crearElemento("p", "order-destination", "Envío a: " + orden.cliente.direccion + ", " + orden.cliente.ciudad + ", " + orden.cliente.departamento);
-        const tabla = this.crearElemento("table", "order-table");
-        const encabezado = document.createElement("thead");
-        const filaEncabezado = document.createElement("tr");
-        const cuerpo = document.createElement("tbody");
-        const pie = document.createElement("tfoot");
-
-        this.resumenOrden.textContent = "";
-        filaEncabezado.appendChild(this.crearElemento("th", "", "Libro"));
-        filaEncabezado.appendChild(this.crearElemento("th", "", "Cantidad"));
-        filaEncabezado.appendChild(this.crearElemento("th", "", "Precio"));
-        filaEncabezado.appendChild(this.crearElemento("th", "", "Subtotal"));
-        encabezado.appendChild(filaEncabezado);
-
+        const comprados = [];
         for (let i = 0; i < orden.detalles.length; i = i + 1) {
-            const fila = document.createElement("tr");
-            fila.appendChild(this.crearElemento("td", "", orden.detalles[i].titulo));
-            fila.appendChild(this.crearElemento("td", "", orden.detalles[i].cantidad));
-            fila.appendChild(this.crearElemento("td", "", formatearMoneda(orden.detalles[i].precioUnitario)));
-            fila.appendChild(this.crearElemento("td", "", formatearMoneda(orden.detalles[i].subtotal)));
-            cuerpo.appendChild(fila);
+            const detalle = orden.detalles[i];
+            for (let j = 0; j < detalle.cantidad; j = j + 1) {
+                comprados.push({ titulo: detalle.titulo, precio: detalle.precioUnitario });
+            }
         }
 
-        const filaTotal = document.createElement("tr");
-        filaTotal.appendChild(this.crearElemento("th", "", "Total"));
-        filaTotal.appendChild(this.crearElemento("td", "", ""));
-        filaTotal.appendChild(this.crearElemento("td", "", ""));
-        filaTotal.appendChild(this.crearElemento("th", "", formatearMoneda(orden.total)));
-        pie.appendChild(filaTotal);
-        tabla.appendChild(encabezado);
-        tabla.appendChild(cuerpo);
-        tabla.appendChild(pie);
-        this.resumenOrden.appendChild(titulo);
-        this.resumenOrden.appendChild(numero);
-        this.resumenOrden.appendChild(fecha);
-        this.resumenOrden.appendChild(destino);
-        this.resumenOrden.appendChild(tabla);
-        this.resumenOrden.appendChild(this.crearElemento("p", "order-status", "Estado: " + orden.estado));
-        this.modalOrden.classList.add("activo");
-        this.modalOrden.setAttribute("aria-hidden", "false");
-        document.getElementById("closeOrderButton").focus();
-    }
-
-    /* Cierra la confirmación de la orden. */
-    cerrarOrden() {
-        if (this.modalOrden !== null) {
-            this.modalOrden.classList.remove("activo");
-            this.modalOrden.setAttribute("aria-hidden", "true");
-        }
+        this.renderizar();
+        return comprados;
     }
 
     /* Presenta mensajes breves de estado para las operaciones del carrito. */
